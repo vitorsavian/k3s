@@ -833,11 +833,27 @@ do_unmount_and_remove() {
     set -x
 }
 
+clean_mounted_directory() {
+    for path in "$1"/*; do
+        if [ -d "$path" ]; then
+            if grep -q "$path" /proc/mounts; then
+                clean_mounted_directory "$path"
+            else
+                rm -rf "$path"
+            fi
+        else
+            rm "$path"
+        fi
+     done
+}
+
 do_unmount_and_remove '/run/k3s'
-do_unmount_and_remove '/var/lib/rancher/k3s'
+do_unmount_and_remove '/var/lib/rancher/k3s/data'
+do_unmount_and_remove '/var/lib/rancher/k3s/storage'
 do_unmount_and_remove '/var/lib/kubelet/pods'
 do_unmount_and_remove '/var/lib/kubelet/plugins'
 do_unmount_and_remove '/run/netns/cni-'
+clean_mounted_directory '/var/lib/rancher/k3s'
 
 # Remove CNI namespaces
 ip netns show 2>/dev/null | grep cni- | xargs -r -t -n 1 ip netns delete
