@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 2ddff0688ce2cc7b85b2fa1475c5fc638c6b985c65640f2271d61e9a43b9248f  install.sh
+=======
+4d7afed2d7f85019262f61cc32842520fc5bceac1ec6a2b586dab4275bae8b4d  install.sh
+>>>>>>> e51862c2e (Only clean the server and agent directory if it is uninstall)
