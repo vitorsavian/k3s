@@ -75,6 +75,7 @@ func main() {
 		cmds.NewCertCommands(
 			cert.Check,
 			cert.Rotate,
+			cert.Reload,
 			cert.RotateCA,
 		),
 		cmds.NewCompletionCommand(completion.Run),
