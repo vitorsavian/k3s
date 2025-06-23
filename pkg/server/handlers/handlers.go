@@ -112,11 +112,69 @@ func ClientKubeProxyCert(control *config.Control) http.Handler {
 	})
 }
 
-func ClientControllerCert(control *config.Control) http.Handler {
+func ClientProgramControllerCert(control *config.Control) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		program := mux.Vars(req)["program"]
 		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientK3sControllerKey, certutil.Config{
 			CommonName: "system:" + program + "-controller",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ClientSupervisorCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		program := mux.Vars(req)["program"]
+		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientSupervisorKey, certutil.Config{
+			CommonName:   "system:" + program + "-supervisor",
+			Organization: []string{user.SystemPrivilegedGroup},
+			Usages:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ClientKubeAPIServerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientKubeAPIKey, certutil.Config{
+			CommonName: user.APIServerUser,
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ClientControllerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientControllerKey, certutil.Config{
+			CommonName: user.KubeControllerManager,
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ClientSchedulerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientSchedulerKey, certutil.Config{
+			CommonName: user.KubeScheduler,
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ClientAdminCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientAdminKey, certutil.Config{
+			CommonName:   "system:admin",
+			Organization: []string{user.SystemPrivilegedGroup},
+			Usages:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ClientProgramCloudControllerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		program := mux.Vars(req)["program"]
+		signAndSend(resp, req, control.Runtime.ClientCA, control.Runtime.ClientCAKey, control.Runtime.ClientCloudControllerKey, certutil.Config{
+			CommonName: program + "-cloud-controller-manager",
 			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 		})
 	})
