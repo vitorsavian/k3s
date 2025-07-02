@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/k3s-io/k3s/pkg/cli/cmds"
 	"github.com/k3s-io/k3s/pkg/daemons/config"
+	"github.com/k3s-io/k3s/pkg/daemons/control/deps"
 	"github.com/k3s-io/k3s/pkg/etcd"
 	"github.com/k3s-io/k3s/pkg/nodepassword"
 	"github.com/k3s-io/k3s/pkg/util"
@@ -85,6 +86,102 @@ func ServingKubeletCert(control *config.Control, auth nodepassword.NodeAuthValid
 				IPs:      ips,
 			},
 		})
+	})
+}
+
+func EtcdClientCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		altNames := &certutil.AltNames{
+			DNSNames: []string{"kine.sock"},
+		}
+		util.AddSANs(altNames, control.SANs)
+		signAndSend(resp, req, control.Runtime.ETCDServerCA, control.Runtime.ETCDServerCAKey, control.Runtime.ClientETCDKey, certutil.Config{
+			CommonName: "etcd-client",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+			AltNames:   *altNames,
+		})
+	})
+}
+
+func EtcdPeerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		altNames := &certutil.AltNames{
+			DNSNames: []string{"kine.sock"},
+		}
+		util.AddSANs(altNames, control.SANs)
+		signAndSend(resp, req, control.Runtime.ETCDPeerCA, control.Runtime.ETCDPeerCAKey, control.Runtime.PeerServerClientETCDKey, certutil.Config{
+			CommonName: "etcd-peer",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+			AltNames:   *altNames,
+		})
+	})
+}
+
+func EtcdServerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		altNames := &certutil.AltNames{
+			DNSNames: []string{"kine.sock"},
+		}
+		util.AddSANs(altNames, control.SANs)
+
+		signAndSend(resp, req, control.Runtime.ETCDServerCA, control.Runtime.ETCDServerCAKey, control.Runtime.ServerETCDKey, certutil.Config{
+			CommonName: "etcd-server",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+			AltNames:   *altNames,
+		})
+	})
+}
+
+func ServingKubeAPICert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		altNames := &certutil.AltNames{
+			DNSNames: []string{"kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc." + control.ClusterDomain},
+		}
+		util.AddSANs(altNames, control.SANs)
+		signAndSend(resp, req, control.Runtime.ServerCA, control.Runtime.ServerCAKey, control.Runtime.ServingKubeAPIKey, certutil.Config{
+			CommonName: "kube-apiserver",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			AltNames:   *altNames,
+		})
+	})
+}
+
+func ClientAuthProxy(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		signAndSend(resp, req, control.Runtime.RequestHeaderCA, control.Runtime.RequestHeaderCAKey, control.Runtime.ClientAuthProxyKey, certutil.Config{
+			CommonName: deps.RequestHeaderCN,
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		})
+	})
+}
+
+func ServingKubeSchedulerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		altNames := &certutil.AltNames{}
+		util.AddSANs(altNames, []string{"localhost", "127.0.0.1", "::1"})
+		signAndSend(resp, req, control.Runtime.ServerCA, control.Runtime.ServerCAKey, control.Runtime.ServingKubeSchedulerKey, certutil.Config{
+			CommonName: "kube-scheduler",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			AltNames:   *altNames,
+		})
+	})
+}
+
+func ServingKubeControllerManagerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		altNames := &certutil.AltNames{}
+		util.AddSANs(altNames, []string{"localhost", "127.0.0.1", "::1"})
+		signAndSend(resp, req, control.Runtime.ServerCA, control.Runtime.ServerCAKey, control.Runtime.ServingKubeControllerKey, certutil.Config{
+			CommonName: "kube-controller-manager",
+			Usages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+			AltNames:   *altNames,
+		})
+	})
+}
+
+func DynamicListenerCert(control *config.Control) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		control.Stuff.RegenerateCerts()
 	})
 }
 

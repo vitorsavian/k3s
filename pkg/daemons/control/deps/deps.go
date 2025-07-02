@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -433,7 +432,7 @@ func genServerCerts(config *config.Control) error {
 		DNSNames: []string{"kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc." + config.ClusterDomain},
 	}
 
-	addSANs(altNames, config.SANs)
+	util.AddSANs(altNames, config.SANs)
 
 	if _, err := createClientCertKey(regen, "kube-apiserver", nil,
 		altNames, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -447,7 +446,7 @@ func genServerCerts(config *config.Control) error {
 	}
 
 	altNames = &certutil.AltNames{}
-	addSANs(altNames, []string{"localhost" ,"127.0.0.1", "::1"})
+	util.AddSANs(altNames, []string{"localhost", "127.0.0.1", "::1"})
 
 	if _, err := createClientCertKey(regen, "kube-scheduler", nil,
 		altNames, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
@@ -477,7 +476,7 @@ func genETCDCerts(config *config.Control) error {
 		DNSNames: []string{"kine.sock"},
 	}
 
-	addSANs(altNames, config.SANs)
+	util.AddSANs(altNames, config.SANs)
 
 	if _, err := createClientCertKey(regen, "etcd-client", nil,
 		nil, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
@@ -564,17 +563,6 @@ func createServerSigningCertKey(config *config.Control) (bool, error) {
 	}
 
 	return regen, nil
-}
-
-func addSANs(altNames *certutil.AltNames, sans []string) {
-	for _, san := range sans {
-		ip := net.ParseIP(san)
-		if ip == nil {
-			altNames.DNSNames = append(altNames.DNSNames, san)
-		} else {
-			altNames.IPs = append(altNames.IPs, ip)
-		}
-	}
 }
 
 func fieldsChanged(certFile string, commonName string, organization []string, sans *certutil.AltNames, caCertFile string) bool {

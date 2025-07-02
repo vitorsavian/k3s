@@ -1,7 +1,11 @@
 package util
 
 import (
+	cryptorand "crypto/rand"
 	"crypto/x509"
+	"encoding/pem"
+	"net"
+	"strings"
 	"time"
 
 	certutil "github.com/rancher/dynamiclistener/cert"
@@ -63,4 +67,45 @@ func GetCertStatus(cert *x509.Certificate, now time.Time, warn time.Time) string
 		return CertStatusWarning
 	}
 	return CertStatusOK
+}
+
+func AddSANs(altNames *certutil.AltNames, sans []string) {
+	for _, san := range sans {
+		ip := net.ParseIP(san)
+		if ip == nil {
+			altNames.DNSNames = append(altNames.DNSNames, san)
+		} else {
+			altNames.IPs = append(altNames.IPs, ip)
+		}
+	}
+}
+
+func GetCSRBytes(keyFile string) ([]byte, error) {
+	keyBytes, _, err := certutil.LoadOrGenerateKeyFile(keyFile, false)
+	if err != nil {
+		return nil, err
+	}
+	key, err := certutil.ParsePrivateKeyPEM(keyBytes)
+	if err != nil {
+		return nil, err
+	}
+	return x509.CreateCertificateRequest(cryptorand.Reader, &x509.CertificateRequest{}, key)
+}
+
+func SplitCertKeyPEM(bytes []byte) (certPem []byte, keyPem []byte) {
+	for {
+		b, rest := pem.Decode(bytes)
+		if b == nil {
+			break
+		}
+		bytes = rest
+
+		if strings.Contains(b.Type, "PRIVATE KEY") {
+			keyPem = append(keyPem, pem.EncodeToMemory(b)...)
+		} else {
+			certPem = append(certPem, pem.EncodeToMemory(b)...)
+		}
+	}
+
+	return
 }

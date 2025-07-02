@@ -29,11 +29,11 @@ import (
 // newListener returns a new TCP listener and HTTP request handler using dynamiclistener.
 // dynamiclistener will use the cluster's Server CA to sign the dynamically generate certificate,
 // and will sync the certs into the Kubernetes datastore, with a local disk cache.
-func (c *Cluster) newListener(ctx context.Context) (net.Listener, http.Handler, error) {
+func (c *Cluster) newListener(ctx context.Context) (net.Listener, *dynamiclistener.Listener, http.Handler, error) {
 	if c.managedDB != nil {
 		resetDone, err := c.managedDB.IsReset()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if resetDone {
 			// delete the dynamic listener TLS secret cache after restoring,
@@ -44,11 +44,11 @@ func (c *Cluster) newListener(ctx context.Context) (net.Listener, http.Handler, 
 	}
 	tcp, err := util.ListenWithLoopback(ctx, c.config.BindAddress, strconv.Itoa(c.config.SupervisorPort))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	certs, key, err := factory.LoadCertsChain(c.config.Runtime.ServerCA, c.config.Runtime.ServerCAKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	c.config.SANs = append(c.config.SANs, "kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc."+c.config.ClusterDomain)
 	if c.config.SANSecurity {
@@ -94,10 +94,12 @@ func (c *Cluster) initClusterAndHTTPS(ctx context.Context) error {
 	// Set up dynamiclistener TLS listener and request handler.
 	// The dynamiclistener request handler is always called first as a middleware to add TLS SANs for host headers.
 	// It does not actually do any request handling or send a response.
-	listener, certHandler, err := c.newListener(ctx)
+	listener, list, certHandler, err := c.newListener(ctx)
 	if err != nil {
 		return err
 	}
+
+	c.config.Stuff = list
 
 	// Create a stub request handler that returns a Service Unavailable response
 	// if the core request handlers have not yet been started yet.
@@ -167,8 +169,8 @@ func tlsStorage(ctx context.Context, dataDir string, runtime *config.ControlRunt
 // proxy connection, so it is not correct to add this value to the certificate.  It would
 // be nice if we could do this with with the FilterCN callback, but unfortunately that
 // callback does not offer access to the request that triggered the change.
-func wrapHandler(listener net.Listener, handler http.Handler, err error) (net.Listener, http.Handler, error) {
-	return listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func wrapHandler(listener net.Listener, list *dynamiclistener.Listener, handler http.Handler, err error) (net.Listener, *dynamiclistener.Listener, http.Handler, error) {
+	return listener, list, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect {
 			r.Header.Add("User-Agent", "mozilla")
 		}

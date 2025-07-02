@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/k3s-io/k3s/pkg/util"
 	certutil "github.com/rancher/dynamiclistener/cert"
 )
 
@@ -42,7 +43,7 @@ func Test_UnitAddSANs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addSANs(tt.args.altNames, tt.args.sans)
+			util.AddSANs(tt.args.altNames, tt.args.sans)
 			if !reflect.DeepEqual(*tt.args.altNames, tt.want) {
 				t.Errorf("addSANs() = %v, want %v", *tt.args.altNames, tt.want)
 			}

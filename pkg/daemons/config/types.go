@@ -19,6 +19,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	utilsnet "k8s.io/utils/net"
+
+	"github.com/rancher/dynamiclistener"
 )
 
 const (
@@ -256,8 +258,9 @@ type Control struct {
 	SANs        []string
 	SANSecurity bool
 	PrivateIP   string
-	Runtime     *ControlRuntime `json:"-"`
-	Cluster     Cluster         `json:"-"`
+	Runtime     *ControlRuntime           `json:"-"`
+	Cluster     Cluster                   `json:"-"`
+	Stuff       *dynamiclistener.Listener `json:"-"`
 }
 
 // BindAddressOrLoopback returns an IPv4 or IPv6 address suitable for embedding in
