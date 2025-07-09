@@ -257,6 +257,19 @@ func check(app *cli.Context, cfg *cmds.Server) error {
 	return formatter.Format(certInfo)
 }
 
+func removeCerts(fileMap map[string][]string) error {
+	for service, files := range fileMap {
+		logrus.Info("Rotating certificates for " + service)
+		for _, file := range files {
+			if err := os.Remove(file); err == nil {
+				logrus.Debugf("file %s is deleted", file)
+			}
+		}
+	}
+
+	return nil
+}
+
 func Rotate(app *cli.Context) error {
 	if err := cmds.InitLogging(); err != nil {
 		return err
@@ -409,127 +422,94 @@ func rotateCA(app *cli.Context, cfg *cmds.Server, sync *cmds.CertRotateCA) error
 	return nil
 }
 
-func getServerCerts(dataDir, token string) error {
-	info, err := clientaccess.ParseAndValidateToken(cmds.ServerConfig.ServerURL, token, clientaccess.WithUser("server"))
+func getCerts(certMap map[string][]services.Cert, agentDataDir, token string) error {
+	infoServer, err := clientaccess.ParseAndValidateToken(cmds.ServerConfig.ServerURL, token, clientaccess.WithUser("server"))
 	if err != nil {
 		return err
 	}
 
-	clientSupervisorCert := filepath.Join(dataDir, "client-supervisor.crt")
-	clientSupervisorKey := filepath.Join(dataDir, "client-supervisor.key")
-	if err := getClientCert(clientSupervisorCert, clientSupervisorKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientSupervisorCert)
-	}
-
-	clientKubeAPIServerCert := filepath.Join(dataDir, "client-kube-apiserver.crt")
-	clientKubeAPIServerKey := filepath.Join(dataDir, "client-kube-apiserver.key")
-	if err := getClientCert(clientKubeAPIServerCert, clientKubeAPIServerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientKubeAPIServerCert)
-	}
-
-	clientControllerCert := filepath.Join(dataDir, "client-controller.crt")
-	clientControllerKey := filepath.Join(dataDir, "client-controller.key")
-	if err := getClientCert(clientControllerCert, clientControllerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientControllerCert)
-	}
-
-	clientSchedulerCert := filepath.Join(dataDir, "client-scheduler.crt")
-	clientSchedulerKey := filepath.Join(dataDir, "client-scheduler.key")
-	if err := getClientCert(clientSchedulerCert, clientSchedulerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientSchedulerCert)
-	}
-
-	clientAdminCert := filepath.Join(dataDir, "client-admin.crt")
-	clientAdminKey := filepath.Join(dataDir, "client-admin.key")
-	if err := getClientCert(clientAdminCert, clientAdminKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientAdminCert)
-	}
-
-	ClientProgramCloudControllerCert := filepath.Join(dataDir, "client-"+version.Program+"-cloud-controller.crt")
-	ClientProgramCloudControllerKey := filepath.Join(dataDir, "client-"+version.Program+"-cloud-controller.key")
-	if err := getClientCert(ClientProgramCloudControllerCert, ClientProgramCloudControllerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, ClientProgramCloudControllerCert)
-	}
-
-	EtcdPeerServerClientCert := filepath.Join(dataDir, "etcd", "peer-server-client.crt")
-	EtcdPeerServerClientKey := filepath.Join(dataDir, "etcd", "peer-server-client.key")
-	if err := getClientCert(EtcdPeerServerClientCert, EtcdPeerServerClientKey, info); err != nil {
-		return pkgerrors.WithMessage(err, EtcdPeerServerClientCert)
-	}
-
-	EtcdClientCert := filepath.Join(dataDir, "etcd", "client.crt")
-	EtcdClientKey := filepath.Join(dataDir, "etcd", "client.key")
-	if err := getClientCert(EtcdClientCert, EtcdClientKey, info); err != nil {
-		return pkgerrors.WithMessage(err, EtcdClientCert)
-	}
-
-	EtcdServerClientCert := filepath.Join(dataDir, "etcd", "server-client.crt")
-	EtcdServerClientKey := filepath.Join(dataDir, "etcd", "server-client.key")
-	if err := getClientCert(EtcdServerClientCert, EtcdServerClientKey, info); err != nil {
-		return pkgerrors.WithMessage(err, EtcdServerClientCert)
-	}
-
-	ServingKubeApiServer := filepath.Join(dataDir, "serving-kube-apiserver.crt")
-	ServingKubeApiServerKey := filepath.Join(dataDir, "serving-kube-apiserver.key")
-	if err := getClientCert(ServingKubeApiServer, ServingKubeApiServerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, ServingKubeApiServer)
-	}
-
-	kubeControllerManager := filepath.Join(dataDir, "kube-controller-manager", "kube-controller-manager.crt")
-	kubeControllerManagerKey := filepath.Join(dataDir, "kube-controller-manager", "kube-controller-manager.key")
-	if err := getClientCert(kubeControllerManager, kubeControllerManagerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, kubeControllerManager)
-	}
-
-	kubeScheduler := filepath.Join(dataDir, "kube-scheduler", "kube-scheduler.crt")
-	kubeSchedulerKey := filepath.Join(dataDir, "kube-scheduler", "kube-scheduler.key")
-	if err := getClientCert(kubeScheduler, kubeSchedulerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, kubeScheduler)
-	}
-
-	clientAuthProxy := filepath.Join(dataDir, "client-auth-proxy.crt")
-	clientAuthProxyKey := filepath.Join(dataDir, "client-auth-proxy.key")
-	if err := getClientCert(clientAuthProxy, clientAuthProxyKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientAuthProxy)
-	}
-
-	if err := regenDynamicCert(info); err != nil {
-		return pkgerrors.WithMessage(err, "failed to regenerate dynamic listener certificate")
-	}
-
-	return nil
-}
-
-func getAgentCerts(dataDir, token string) error {
-	clientKubeletCert := filepath.Join(dataDir, "client-kubelet.crt")
-	clientKubeletKey := filepath.Join(dataDir, "client-kubelet.key")
-
+	clientKubeletCert := filepath.Join(agentDataDir, "client-kubelet.crt")
+	clientKubeletKey := filepath.Join(agentDataDir, "client-kubelet.key")
 	options := []clientaccess.ValidationOption{
 		clientaccess.WithClientCertificate(clientKubeletCert, clientKubeletKey),
 		clientaccess.WithUser("node"),
 	}
 
-	info, err := clientaccess.ParseAndValidateToken(cmds.ServerConfig.ServerURL, token, options...)
+	infoAgent, err := clientaccess.ParseAndValidateToken(cmds.ServerConfig.ServerURL, token, options...)
 	if err != nil {
 		return err
 	}
 
+	// for kubelet, this is a special way of reload the certificate, since it needs the
+	// nodeIps and nodeName infos for the creation of this certificate
+	if service, ok := certMap[services.Kubelet]; ok {
+		nodeName, nodeIps, err := getInfoForKubelet(agentDataDir)
+		if err != nil {
+			return err
+		}
+
+		for _, file := range service {
+			// if Cert is empty, means that file.Key does not have a cert and the key is with the server
+			if file.Cert == "" {
+				continue
+			}
+
+			if err := getKubeletCert(file.Cert, file.Key, nodeName, nodeIps, infoAgent); err != nil {
+				return pkgerrors.WithMessage(err, file.Cert)
+			}
+		}
+	}
+
+	if _, ok := certMap[version.Program+services.ProgramServer]; ok {
+		if err := regenDynamicCert(infoServer); err != nil {
+			return pkgerrors.WithMessage(err, "failed to regenerate dynamic listener certificate")
+		}
+	}
+
+	// pass for every cert in the services that we defined and send the client request
+	for service, certs := range certMap {
+		if service == version.Program+version.Program || service == services.Kubelet {
+			continue
+		}
+
+		for _, file := range certs {
+			logrus.Println(file.Cert)
+			logrus.Println(file.Key)
+			if file.Cert == "" {
+				continue
+			}
+
+			if strings.Contains(file.Cert, agentDataDir) {
+				if err := getClientCert(file.Cert, file.Key, infoAgent); err != nil {
+					return pkgerrors.WithMessage(err, file.Cert)
+				}
+			} else {
+				if err := getClientCert(file.Cert, file.Key, infoServer); err != nil {
+					return pkgerrors.WithMessage(err, file.Cert)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func getInfoForKubelet(dataDir string) (string, []net.IP, error) {
 	servingKubeletCert := filepath.Join(dataDir, "serving-kubelet.crt")
-	servingKubeletKey := filepath.Join(dataDir, "serving-kubelet.key")
 
 	certPEM, err := os.ReadFile(servingKubeletCert)
 	if err != nil {
-		panic(err)
+		return "", []net.IP{}, err
 	}
 
 	block, _ := pem.Decode(certPEM)
 	if block == nil {
-		panic("failed to parse PEM block")
+		return "", []net.IP{}, errors.New("failed to parse PEM block for serving-kubelet")
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		panic(err)
+		return "", []net.IP{}, err
 	}
 
 	var nodeName string
@@ -539,7 +519,6 @@ func getAgentCerts(dataDir, token string) error {
 		if ip.String() != "127.0.0.1" {
 			nodeIps = append(nodeIps, ip)
 		}
-		fmt.Println("  -", ip.String())
 	}
 
 	// this for is to get the node name from the DNS names set in the certificate since we want to have this nodeName
@@ -547,31 +526,9 @@ func getAgentCerts(dataDir, token string) error {
 		if dns != "localhost" {
 			nodeName = dns
 		}
-		fmt.Println("  -", dns)
 	}
 
-	if err := getKubeletCert(servingKubeletCert, servingKubeletKey, nodeName, nodeIps, info); err != nil {
-		return pkgerrors.WithMessage(err, servingKubeletCert)
-	}
-
-	if err := getKubeletCert(clientKubeletCert, clientKubeletKey, nodeName, nodeIps, info); err != nil {
-		return pkgerrors.WithMessage(err, servingKubeletCert)
-	}
-
-	clientKubeProxyCert := filepath.Join(dataDir, "client-kube-proxy.crt")
-	clientKubeProxyKey := filepath.Join(dataDir, "client-kube-proxy.key")
-
-	if err := getClientCert(clientKubeProxyCert, clientKubeProxyKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientKubeProxyCert)
-	}
-
-	clientK3sControllerCert := filepath.Join(dataDir, "client-"+version.Program+"-controller.crt")
-	clientK3sControllerKey := filepath.Join(dataDir, "client-"+version.Program+"-controller.key")
-
-	if err := getClientCert(clientK3sControllerCert, clientK3sControllerKey, info); err != nil {
-		return pkgerrors.WithMessage(err, clientK3sControllerCert)
-	}
-	return nil
+	return nodeName, nodeIps, nil
 }
 
 func getKubeletCert(certFile string, keyFile string, nodeName string, nodeIps []net.IP, info *clientaccess.Info) error {
@@ -597,8 +554,7 @@ func getKubeletCert(certFile string, keyFile string, nodeName string, nodeIps []
 	nodePasswordFile := filepath.Join("/etc/rancher/node", "password")
 	nodePassword, err := stuff.EnsureNodePassword(nodePasswordFile)
 	if err != nil {
-
-		return nil
+		return pkgerrors.WithMessage(err, "error while getting node password")
 	}
 
 	req.Header.Add("Authorization", "Bearer "+info.Token())
@@ -631,11 +587,13 @@ func getKubeletCert(certFile string, keyFile string, nodeName string, nodeIps []
 	if err := os.WriteFile(certFile, certBytes, 0600); err != nil {
 		return pkgerrors.WithMessagef(err, "failed to write cert %s", certFile)
 	}
+
 	if len(keyBytes) > 0 {
 		if err := os.WriteFile(keyFile, keyBytes, 0600); err != nil {
 			return pkgerrors.WithMessagef(err, "failed to write key %s", keyFile)
 		}
 	}
+
 	return nil
 }
 
@@ -664,14 +622,10 @@ func getClientCert(certFile, keyFile string, info *clientaccess.Info) error {
 	return nil
 }
 
-func removeCerts(fileMap map[string][]string) error {
-	for service, files := range fileMap {
-		logrus.Info("Rotating certificates for " + service)
-		for _, file := range files {
-			if err := os.Remove(file); err == nil {
-				logrus.Debugf("file %s is deleted", file)
-			}
-		}
+func regenDynamicCert(info *clientaccess.Info) error {
+	err := info.Put("/v1-"+version.Program+"/dynamic-listener", []byte{})
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -683,15 +637,6 @@ func Reload(app *cli.Context) error {
 	}
 
 	return reload(app, &cmds.ServerConfig)
-}
-
-func PrintFileMap(fileMap map[string][]string) {
-	for service, files := range fileMap {
-		fmt.Printf("Service: %s\n", service)
-		for _, file := range files {
-			fmt.Printf("  - %s\n", file)
-		}
-	}
 }
 
 func reload(app *cli.Context, cfg *cmds.Server) error {
@@ -723,12 +668,15 @@ func reload(app *cli.Context, cfg *cmds.Server) error {
 		}
 	}
 
-	fileMap, err := services.FilesForServices(serverConfig.ControlConfig, cmds.ServicesList.Value())
+	certMap, err := services.CertsForServices(serverConfig.ControlConfig, cmds.ServicesList.Value())
 	if err != nil {
 		return err
 	}
 
-	PrintFileMap(fileMap)
+	fileMap, err := services.FilesForServices(serverConfig.ControlConfig, cmds.ServicesList.Value())
+	if err != nil {
+		return err
+	}
 
 	// back up all the files
 	agentDataDir := filepath.Join(dataDir, "agent")
@@ -737,37 +685,10 @@ func reload(app *cli.Context, cfg *cmds.Server) error {
 		return err
 	}
 
-	serverTLSDir := filepath.Join(serverConfig.ControlConfig.DataDir, "tls")
-	if err := getServerCerts(serverTLSDir, serverConfig.ControlConfig.Token); err != nil {
+	if err := getCerts(certMap, agentDataDir, serverConfig.ControlConfig.Token); err != nil {
 		return pkgerrors.WithMessage(err, "failed to get server certificates")
 	}
 
-	if err := getAgentCerts(agentDataDir, serverConfig.ControlConfig.Token); err != nil {
-		return pkgerrors.WithMessage(err, "failed to get agent certificates")
-	}
-
-	// The dynamiclistener cache file can't be simply deleted, we need to create a trigger
-	// file to indicate that the cert needs to be regenerated on startup.
-	for _, service := range cmds.ServicesList.Value() {
-		if service == version.Program+services.ProgramServer {
-			dynamicListenerRegenFilePath := filepath.Join(serverConfig.ControlConfig.DataDir, "tls", "dynamic-cert-regenerate")
-			if err := os.WriteFile(dynamicListenerRegenFilePath, []byte{}, 0600); err != nil {
-				return err
-			}
-			logrus.Infof("Rotating dynamic listener certificate")
-		}
-	}
-
-	logrus.Infof("Successfully backed up certificates to %s, please restart %s server or agent to rotate certificates", tlsBackupDir, version.Program)
-
-	return nil
-}
-
-func regenDynamicCert(info *clientaccess.Info) error {
-	err := info.Put("/v1-"+version.Program+"/dynamic-listener", []byte{})
-	if err != nil {
-		return err
-	}
-
+	logrus.Infof("Successfully backed up certificates to %s and certificates were reloaded", tlsBackupDir)
 	return nil
 }

@@ -181,7 +181,12 @@ func ServingKubeControllerManagerCert(control *config.Control) http.Handler {
 
 func DynamicListenerCert(control *config.Control) http.Handler {
 	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		control.Stuff.RegenerateCerts()
+		if err := control.DynamicListener.Listener.RegenerateCerts(); err != nil {
+			util.SendError(err, resp, req)
+			return
+		}
+
+		resp.WriteHeader(http.StatusOK)
 	})
 }
 

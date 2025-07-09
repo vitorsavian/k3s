@@ -254,13 +254,13 @@ type Control struct {
 	VLevel                   int
 	VModule                  string
 
-	BindAddress string
-	SANs        []string
-	SANSecurity bool
-	PrivateIP   string
-	Runtime     *ControlRuntime           `json:"-"`
-	Cluster     Cluster                   `json:"-"`
-	Stuff       *dynamiclistener.Listener `json:"-"`
+	BindAddress     string
+	SANs            []string
+	SANSecurity     bool
+	PrivateIP       string
+	Runtime         *ControlRuntime           `json:"-"`
+	Cluster         Cluster                   `json:"-"`
+	DynamicListener *dynamiclistener.Listener `json:"-"`
 }
 
 // BindAddressOrLoopback returns an IPv4 or IPv6 address suitable for embedding in

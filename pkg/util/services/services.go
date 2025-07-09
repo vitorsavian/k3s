@@ -24,6 +24,11 @@ const (
 	Supervisor           = "supervisor"
 )
 
+type Cert struct {
+	Cert string
+	Key  string
+}
+
 var Agent = []string{
 	KubeProxy,
 	Kubelet,
@@ -48,6 +53,84 @@ var All = append(Server, Agent...)
 // requires manual action by the user to rotate these certs.
 var CA = []string{
 	CertificateAuthority,
+}
+
+func CertsForServices(controlConfig config.Control, services []string) (map[string][]Cert, error) {
+	agentDataDir := filepath.Join(controlConfig.DataDir, "..", "agent")
+	fileMap := map[string][]Cert{}
+
+	for _, service := range services {
+		switch service {
+		case Admin:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientAdminCert, Key: controlConfig.Runtime.ClientAdminKey},
+			}
+		case APIServer:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientKubeAPICert, Key: controlConfig.Runtime.ClientKubeAPIKey},
+				{Cert: controlConfig.Runtime.ServingKubeAPICert, Key: controlConfig.Runtime.ServingKubeAPIKey},
+			}
+		case ControllerManager:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientControllerCert, Key: controlConfig.Runtime.ClientControllerKey},
+				{Cert: controlConfig.Runtime.ServingKubeControllerCert, Key: controlConfig.Runtime.ServingKubeControllerKey},
+			}
+		case Scheduler:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientSchedulerCert, Key: controlConfig.Runtime.ClientSchedulerKey},
+				{Cert: controlConfig.Runtime.ServingKubeSchedulerCert, Key: controlConfig.Runtime.ServingKubeSchedulerKey},
+			}
+		case ETCD:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientETCDCert, Key: controlConfig.Runtime.ClientETCDKey},
+				{Cert: controlConfig.Runtime.ServerETCDCert, Key: controlConfig.Runtime.ServerETCDKey},
+				{Cert: controlConfig.Runtime.PeerServerClientETCDCert, Key: controlConfig.Runtime.PeerServerClientETCDKey},
+			}
+		case CloudController:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientCloudControllerCert, Key: controlConfig.Runtime.ClientCloudControllerKey},
+			}
+		case version.Program + ProgramController:
+			fileMap[service] = []Cert{
+				{Cert: "", Key: controlConfig.Runtime.ClientK3sControllerKey},
+				{Cert: filepath.Join(agentDataDir, "client-"+version.Program+"-controller.crt"), Key: filepath.Join(agentDataDir, "client-"+version.Program+"-controller.key")},
+			}
+		case Supervisor:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientSupervisorCert, Key: controlConfig.Runtime.ClientSupervisorKey},
+			}
+		case AuthProxy:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ClientAuthProxyCert, Key: controlConfig.Runtime.ClientAuthProxyKey},
+			}
+		case Kubelet:
+			fileMap[service] = []Cert{
+				{Cert: "", Key: controlConfig.Runtime.ClientKubeletKey},
+				{Cert: "", Key: controlConfig.Runtime.ServingKubeletKey},
+				{Cert: filepath.Join(agentDataDir, "client-kubelet.crt"), Key: filepath.Join(agentDataDir, "client-kubelet.key")},
+				{Cert: filepath.Join(agentDataDir, "serving-kubelet.crt"), Key: filepath.Join(agentDataDir, "serving-kubelet.key")},
+			}
+		case KubeProxy:
+			fileMap[service] = []Cert{
+				{Cert: "", Key: controlConfig.Runtime.ClientKubeProxyKey},
+				{Cert: filepath.Join(agentDataDir, "client-kube-proxy.crt"), Key: filepath.Join(agentDataDir, "client-kube-proxy.key")},
+			}
+		case CertificateAuthority:
+			fileMap[service] = []Cert{
+				{Cert: controlConfig.Runtime.ServerCA, Key: controlConfig.Runtime.ServerCAKey},
+				{Cert: controlConfig.Runtime.ClientCA, Key: controlConfig.Runtime.ClientCAKey},
+				{Cert: controlConfig.Runtime.RequestHeaderCA, Key: controlConfig.Runtime.RequestHeaderCAKey},
+				{Cert: controlConfig.Runtime.ETCDPeerCA, Key: controlConfig.Runtime.ETCDPeerCAKey},
+				{Cert: controlConfig.Runtime.ETCDServerCA, Key: controlConfig.Runtime.ETCDServerCAKey},
+			}
+		case version.Program + ProgramServer:
+			// not handled here, as the dynamiclistener cert cache is not a standard cert
+		default:
+			return nil, fmt.Errorf("%s is not a recognized service", service)
+		}
+	}
+
+	return fileMap, nil
 }
 
 func FilesForServices(controlConfig config.Control, services []string) (map[string][]string, error) {
