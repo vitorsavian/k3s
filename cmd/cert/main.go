@@ -19,6 +19,7 @@ func main() {
 			cert.Check,
 			cert.Rotate,
 			cert.RotateCA,
+			cert.Reload,
 		),
 	}
 

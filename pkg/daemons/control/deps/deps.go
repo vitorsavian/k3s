@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -127,12 +128,12 @@ func CreateRuntimeCertFiles(config *config.Control) {
 	runtime.ClientAdminKey = filepath.Join(config.DataDir, "tls", "client-admin.key")
 	runtime.ClientSupervisorCert = filepath.Join(config.DataDir, "tls", "client-supervisor.crt")
 	runtime.ClientSupervisorKey = filepath.Join(config.DataDir, "tls", "client-supervisor.key")
-	runtime.ClientControllerCert = filepath.Join(config.DataDir, "tls", "client-controller.crt")
-	runtime.ClientControllerKey = filepath.Join(config.DataDir, "tls", "client-controller.key")
-	runtime.ClientCloudControllerCert = filepath.Join(config.DataDir, "tls", "client-"+version.Program+"-cloud-controller.crt")
-	runtime.ClientCloudControllerKey = filepath.Join(config.DataDir, "tls", "client-"+version.Program+"-cloud-controller.key")
-	runtime.ClientSchedulerCert = filepath.Join(config.DataDir, "tls", "client-scheduler.crt")
-	runtime.ClientSchedulerKey = filepath.Join(config.DataDir, "tls", "client-scheduler.key")
+	runtime.ClientControllerCert = filepath.Join(config.DataDir, "tls", "kube-controller-manager", "client-controller.crt")
+	runtime.ClientControllerKey = filepath.Join(config.DataDir, "tls", "kube-controller-manager", "client-controller.key")
+	runtime.ClientCloudControllerCert = filepath.Join(config.DataDir, "tls", "cloud-controller-manager", "client-"+version.Program+"-cloud-controller.crt")
+	runtime.ClientCloudControllerKey = filepath.Join(config.DataDir, "tls", "cloud-controller-manager", "client-"+version.Program+"-cloud-controller.key")
+	runtime.ClientSchedulerCert = filepath.Join(config.DataDir, "tls", "kube-scheduler", "client-scheduler.crt")
+	runtime.ClientSchedulerKey = filepath.Join(config.DataDir, "tls", "kube-scheduler", "client-scheduler.key")
 	runtime.ClientKubeAPICert = filepath.Join(config.DataDir, "tls", "client-kube-apiserver.crt")
 	runtime.ClientKubeAPIKey = filepath.Join(config.DataDir, "tls", "client-kube-apiserver.key")
 	runtime.ClientKubeProxyCert = filepath.Join(config.DataDir, "tls", "client-kube-proxy.crt")
@@ -162,10 +163,10 @@ func CreateRuntimeCertFiles(config *config.Control) {
 	runtime.ETCDServerCAKey = filepath.Join(config.DataDir, "tls", "etcd", "server-ca.key")
 	runtime.ETCDPeerCA = filepath.Join(config.DataDir, "tls", "etcd", "peer-ca.crt")
 	runtime.ETCDPeerCAKey = filepath.Join(config.DataDir, "tls", "etcd", "peer-ca.key")
-	runtime.ServerETCDCert = filepath.Join(config.DataDir, "tls", "etcd", "server-client.crt")
-	runtime.ServerETCDKey = filepath.Join(config.DataDir, "tls", "etcd", "server-client.key")
-	runtime.PeerServerClientETCDCert = filepath.Join(config.DataDir, "tls", "etcd", "peer-server-client.crt")
-	runtime.PeerServerClientETCDKey = filepath.Join(config.DataDir, "tls", "etcd", "peer-server-client.key")
+	runtime.ServerETCDCert = filepath.Join(config.DataDir, "tls", "etcd", "member", "server-client.crt")
+	runtime.ServerETCDKey = filepath.Join(config.DataDir, "tls", "etcd", "member", "server-client.key")
+	runtime.PeerServerClientETCDCert = filepath.Join(config.DataDir, "tls", "etcd", "member", "peer-server-client.crt")
+	runtime.PeerServerClientETCDKey = filepath.Join(config.DataDir, "tls", "etcd", "member", "peer-server-client.key")
 	runtime.ClientETCDCert = filepath.Join(config.DataDir, "tls", "etcd", "client.crt")
 	runtime.ClientETCDKey = filepath.Join(config.DataDir, "tls", "etcd", "client.key")
 
@@ -372,24 +373,20 @@ func genClientCerts(config *config.Control) error {
 		}
 	}
 
-	certGen, err = factory(user.KubeControllerManager, nil, runtime.ClientControllerCert, runtime.ClientControllerKey)
-	if err != nil {
+	// Kubeconfigs for certs in per-component directories are always written, as they may
+	// still reference the legacy path if the cert was moved by MigrateCertKey.
+	if _, err := factory(user.KubeControllerManager, nil, runtime.ClientControllerCert, runtime.ClientControllerKey); err != nil {
 		return err
 	}
-	if certGen {
-		if err := KubeConfig(runtime.KubeConfigController, apiEndpoint, runtime.ServerCA, runtime.ClientControllerCert, runtime.ClientControllerKey); err != nil {
-			return err
-		}
+	if err := KubeConfig(runtime.KubeConfigController, apiEndpoint, runtime.ServerCA, runtime.ClientControllerCert, runtime.ClientControllerKey); err != nil {
+		return err
 	}
 
-	certGen, err = factory(user.KubeScheduler, nil, runtime.ClientSchedulerCert, runtime.ClientSchedulerKey)
-	if err != nil {
+	if _, err := factory(user.KubeScheduler, nil, runtime.ClientSchedulerCert, runtime.ClientSchedulerKey); err != nil {
 		return err
 	}
-	if certGen {
-		if err := KubeConfig(runtime.KubeConfigScheduler, apiEndpoint, runtime.ServerCA, runtime.ClientSchedulerCert, runtime.ClientSchedulerKey); err != nil {
-			return err
-		}
+	if err := KubeConfig(runtime.KubeConfigScheduler, apiEndpoint, runtime.ServerCA, runtime.ClientSchedulerCert, runtime.ClientSchedulerKey); err != nil {
+		return err
 	}
 
 	certGen, err = factory(user.APIServerUser, []string{user.SystemPrivilegedGroup}, runtime.ClientKubeAPICert, runtime.ClientKubeAPIKey)
@@ -414,14 +411,11 @@ func genClientCerts(config *config.Control) error {
 		return err
 	}
 
-	certGen, err = factory(version.Program+"-cloud-controller-manager", nil, runtime.ClientCloudControllerCert, runtime.ClientCloudControllerKey)
-	if err != nil {
+	if _, err := factory(version.Program+"-cloud-controller-manager", nil, runtime.ClientCloudControllerCert, runtime.ClientCloudControllerKey); err != nil {
 		return err
 	}
-	if certGen {
-		if err := KubeConfig(runtime.KubeConfigCloudController, apiEndpoint, runtime.ServerCA, runtime.ClientCloudControllerCert, runtime.ClientCloudControllerKey); err != nil {
-			return err
-		}
+	if err := KubeConfig(runtime.KubeConfigCloudController, apiEndpoint, runtime.ServerCA, runtime.ClientCloudControllerCert, runtime.ClientCloudControllerKey); err != nil {
+		return err
 	}
 
 	return nil
@@ -434,14 +428,8 @@ func genServerCerts(config *config.Control) error {
 		return err
 	}
 
-	altNames := &certutil.AltNames{
-		DNSNames: []string{"kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc." + config.ClusterDomain},
-	}
-
-	addSANs(altNames, config.SANs)
-
 	if _, err := createClientCertKey(regen, "kube-apiserver", nil,
-		altNames, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		APIServerAltNames(config), []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		runtime.ServerCA, runtime.ServerCAKey,
 		runtime.ServingKubeAPICert, runtime.ServingKubeAPIKey); err != nil {
 		return err
@@ -451,18 +439,15 @@ func genServerCerts(config *config.Control) error {
 		return err
 	}
 
-	altNames = &certutil.AltNames{}
-	addSANs(altNames, []string{"localhost", "127.0.0.1", "::1"})
-
 	if _, err := createClientCertKey(regen, "kube-scheduler", nil,
-		altNames, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		LoopbackAltNames(), []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		runtime.ServerCA, runtime.ServerCAKey,
 		runtime.ServingKubeSchedulerCert, runtime.ServingKubeSchedulerKey); err != nil {
 		return err
 	}
 
 	if _, err := createClientCertKey(regen, "kube-controller-manager", nil,
-		altNames, []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		LoopbackAltNames(), []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		runtime.ServerCA, runtime.ServerCAKey,
 		runtime.ServingKubeControllerCert, runtime.ServingKubeControllerKey); err != nil {
 		return err
@@ -478,11 +463,7 @@ func genETCDCerts(config *config.Control) error {
 		return err
 	}
 
-	altNames := &certutil.AltNames{
-		DNSNames: []string{"kine.sock"},
-	}
-
-	addSANs(altNames, config.SANs)
+	altNames := ETCDAltNames(config)
 
 	if _, err := createClientCertKey(regen, "etcd-client", nil,
 		nil, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
@@ -571,12 +552,46 @@ func createServerSigningCertKey(config *config.Control) (bool, error) {
 	return regen, nil
 }
 
+func kubernetesServiceNames(clusterDomain string) []string {
+	return []string{"kubernetes", "kubernetes.default", "kubernetes.default.svc", "kubernetes.default.svc." + clusterDomain}
+}
+
+// APIServerAltNames returns the SANs for the kube-apiserver serving certificate.
+func APIServerAltNames(config *config.Control) *certutil.AltNames {
+	altNames := &certutil.AltNames{DNSNames: kubernetesServiceNames(config.ClusterDomain)}
+	addSANs(altNames, config.SANs)
+	return altNames
+}
+
+// ETCDAltNames returns the SANs for the etcd server and peer certificates.
+// The kubernetes service names are skipped, as the supervisor listener adds
+// them to config.SANs after the etcd certificates are generated at startup.
+func ETCDAltNames(config *config.Control) *certutil.AltNames {
+	serviceNames := kubernetesServiceNames(config.ClusterDomain)
+	altNames := &certutil.AltNames{DNSNames: []string{"kine.sock"}}
+	addSANs(altNames, slices.DeleteFunc(slices.Clone(config.SANs), func(san string) bool {
+		return slices.Contains(serviceNames, san)
+	}))
+	return altNames
+}
+
+// LoopbackAltNames returns the SANs for serving certificates of components
+// that only listen on the loopback address.
+func LoopbackAltNames() *certutil.AltNames {
+	altNames := &certutil.AltNames{}
+	addSANs(altNames, []string{"localhost", "127.0.0.1", "::1"})
+	return altNames
+}
+
+// addSANs adds the provided SANs to the list of DNS names or IPs, skipping duplicates.
 func addSANs(altNames *certutil.AltNames, sans []string) {
 	for _, san := range sans {
 		ip := net.ParseIP(san)
 		if ip == nil {
-			altNames.DNSNames = append(altNames.DNSNames, san)
-		} else {
+			if !slices.Contains(altNames.DNSNames, san) {
+				altNames.DNSNames = append(altNames.DNSNames, san)
+			}
+		} else if !slices.ContainsFunc(altNames.IPs, ip.Equal) {
 			altNames.IPs = append(altNames.IPs, ip)
 		}
 	}
@@ -678,6 +693,58 @@ func cleanupLegacyCerts(config *config.Control) error {
 	for _, cert := range legacyCerts {
 		if err := os.Remove(cert); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
+		}
+	}
+	return MigrateLegacyCerts(config.Runtime)
+}
+
+// MigrateLegacyCerts moves the cert/key pairs that are now stored in per-component directories.
+func MigrateLegacyCerts(runtime *config.ControlRuntime) error {
+	for _, pair := range [][2]string{
+		{runtime.ClientControllerCert, runtime.ClientControllerKey},
+		{runtime.ClientSchedulerCert, runtime.ClientSchedulerKey},
+		{runtime.ClientCloudControllerCert, runtime.ClientCloudControllerKey},
+		{runtime.ServerETCDCert, runtime.ServerETCDKey},
+		{runtime.PeerServerClientETCDCert, runtime.PeerServerClientETCDKey},
+	} {
+		if err := MigrateCertKey(pair[0], pair[1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MigrateCertKey moves a cert/key pair from its legacy location in the parent directory
+// into its own directory, so that the directory can be mounted without exposing other
+// files. A legacy pair is only written by an older release, so it replaces any existing
+// files. Leftovers from an incomplete legacy pair are removed.
+func MigrateCertKey(certFile, keyFile string) error {
+	files := []string{certFile, keyFile}
+	legacyFiles := make([]string, len(files))
+	partial := false
+	for i, file := range files {
+		legacyFiles[i] = filepath.Join(filepath.Dir(filepath.Dir(file)), filepath.Base(file))
+		partial = partial || exists(legacyFiles[i])
+	}
+	if exists(legacyFiles...) {
+		if err := os.MkdirAll(filepath.Dir(certFile), 0755); err != nil {
+			return err
+		}
+		for i, file := range legacyFiles {
+			logrus.Infof("Moving %s to %s", file, files[i])
+			if err := os.Rename(file, files[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if partial {
+		// A partial legacy pair is left behind if a previous move was interrupted, in which case the
+		// files in the new location may not match either. Remove both so that they are regenerated.
+		for _, file := range append(legacyFiles, files...) {
+			if err := os.Remove(file); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 		}
 	}
 	return nil

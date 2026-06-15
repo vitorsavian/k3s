@@ -873,9 +873,22 @@ func toTLSConfig(runtime *config.ControlRuntime) (*tls.Config, error) {
 		return nil, err
 	}
 
+	// The client cert is loaded from disk on each handshake, so that long-lived clients use the
+	// new cert after it is renewed by `certificate rotate reload`. If the files cannot be loaded,
+	// for example while they are being replaced, the last cert that loaded successfully is used.
+	var lock sync.Mutex
 	return &tls.Config{
-		RootCAs:      pool,
-		Certificates: []tls.Certificate{clientCert},
+		RootCAs: pool,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			lock.Lock()
+			defer lock.Unlock()
+			if cert, err := tls.LoadX509KeyPair(runtime.ClientETCDCert, runtime.ClientETCDKey); err != nil {
+				logrus.Warnf("Failed to reload etcd client certificate, using previously loaded certificate: %v", err)
+			} else {
+				clientCert = cert
+			}
+			return &clientCert, nil
+		},
 	}, nil
 }
 

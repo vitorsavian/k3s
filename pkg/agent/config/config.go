@@ -517,8 +517,8 @@ func get(ctx context.Context, envInfo *cmds.Agent, proxy proxy.Proxy) (*config.N
 	os.Setenv("NODE_NAME", nodeName)
 
 	kubeconfigKubelet := filepath.Join(envInfo.DataDir, "agent", "kubelet.kubeconfig")
-	clientKubeProxyCert := filepath.Join(envInfo.DataDir, "agent", "client-kube-proxy.crt")
-	clientKubeProxyKey := filepath.Join(envInfo.DataDir, "agent", "client-kube-proxy.key")
+	clientKubeProxyCert := filepath.Join(envInfo.DataDir, "agent", "kube-proxy", "client-kube-proxy.crt")
+	clientKubeProxyKey := filepath.Join(envInfo.DataDir, "agent", "kube-proxy", "client-kube-proxy.key")
 	kubeconfigKubeproxy := filepath.Join(envInfo.DataDir, "agent", "kubeproxy.kubeconfig")
 	clientK3sControllerCert := filepath.Join(envInfo.DataDir, "agent", "client-"+version.Program+"-controller.crt")
 	clientK3sControllerKey := filepath.Join(envInfo.DataDir, "agent", "client-"+version.Program+"-controller.key")
@@ -752,6 +752,10 @@ func get(ctx context.Context, envInfo *cmds.Agent, proxy proxy.Proxy) (*config.N
 
 	// Generate a kubeconfig for the kubelet.
 	if err := deps.KubeConfig(kubeconfigKubelet, apiServerURL, serverCAFile, clientKubeletCert, clientKubeletKey); err != nil {
+		return nil, err
+	}
+
+	if err := deps.MigrateCertKey(clientKubeProxyCert, clientKubeProxyKey); err != nil {
 		return nil, err
 	}
 

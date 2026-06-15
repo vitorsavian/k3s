@@ -19,6 +19,7 @@ replace (
 	github.com/opencontainers/selinux => github.com/opencontainers/selinux v1.15.1
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common => github.com/prometheus/common v0.70.0
+	github.com/rancher/dynamiclistener => github.com/vitorsavian/dynamiclistener v0.0.0-20261028123639-23a0e3071542
 	github.com/spegel-org/spegel => github.com/k3s-io/spegel v0.7.2-k3s1
 	github.com/spf13/cobra => github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag => github.com/spf13/pflag v1.0.10
@@ -38,7 +39,7 @@ replace (
 	k8s.io/api => github.com/k3s-io/kubernetes/staging/src/k8s.io/api v1.37.2-k3s1
 	k8s.io/apiextensions-apiserver => github.com/k3s-io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v1.37.2-k3s1
 	k8s.io/apimachinery => github.com/k3s-io/kubernetes/staging/src/k8s.io/apimachinery v1.37.2-k3s1
-	k8s.io/apiserver => github.com/k3s-io/kubernetes/staging/src/k8s.io/apiserver v1.37.2-k3s1
+	k8s.io/apiserver => github.com/vitorsavian/kubernetes/staging/src/k8s.io/apiserver v1.37.2-vs1
 	k8s.io/cli-runtime => github.com/k3s-io/kubernetes/staging/src/k8s.io/cli-runtime v1.37.2-k3s1
 	k8s.io/client-go => github.com/k3s-io/kubernetes/staging/src/k8s.io/client-go v1.37.2-k3s1
 	k8s.io/cloud-provider => github.com/k3s-io/kubernetes/staging/src/k8s.io/cloud-provider v1.37.2-k3s1

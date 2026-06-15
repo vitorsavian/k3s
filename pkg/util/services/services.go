@@ -125,8 +125,8 @@ func FilesForServices(controlConfig config.Control, services []string) (map[stri
 			fileMap[service] = []string{
 				controlConfig.Runtime.ClientKubeProxyCert,
 				controlConfig.Runtime.ClientKubeProxyKey,
-				filepath.Join(agentDataDir, "client-kube-proxy.crt"),
-				filepath.Join(agentDataDir, "client-kube-proxy.key"),
+				filepath.Join(agentDataDir, "kube-proxy", "client-kube-proxy.crt"),
+				filepath.Join(agentDataDir, "kube-proxy", "client-kube-proxy.key"),
 			}
 		case CertificateAuthority:
 			fileMap[service] = []string{

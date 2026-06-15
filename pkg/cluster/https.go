@@ -57,7 +57,7 @@ func (c *Cluster) newListener(ctx context.Context) (net.Listener, http.Handler, 
 		}
 	}
 	storage := tlsStorage(ctx, c.config.DataDir, c.config.Runtime)
-	return wrapHandler(dynamiclistener.NewListenerWithChain(tcp, storage, certs, key, dynamiclistener.Config{
+	listener, err := dynamiclistener.NewListenerWithChain(tcp, storage, certs, key, dynamiclistener.Config{
 		ExpirationDaysCheck: config.CertificateRenewDays,
 		Organization:        []string{version.Program},
 		SANs:                c.config.SANs,
@@ -69,16 +69,20 @@ func (c *Cluster) newListener(ctx context.Context) (net.Listener, http.Handler, 
 			NextProtos:   []string{"h2", "http/1.1"},
 		},
 		FilterCN: c.filterCN,
-		RegenerateCerts: func() bool {
-			const regenerateDynamicListenerFile = "dynamic-cert-regenerate"
-			dynamicListenerRegenFilePath := filepath.Join(c.config.DataDir, "tls", regenerateDynamicListenerFile)
-			if _, err := os.Stat(dynamicListenerRegenFilePath); err == nil {
-				os.Remove(dynamicListenerRegenFilePath)
-				return true
-			}
-			return false
-		},
-	}))
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	const regenerateDynamicListenerFile = "dynamic-cert-regenerate"
+	dynamicListenerRegenFilePath := filepath.Join(c.config.DataDir, "tls", regenerateDynamicListenerFile)
+	if _, err := os.Stat(dynamicListenerRegenFilePath); err == nil {
+		os.Remove(dynamicListenerRegenFilePath)
+		if err := listener.Listener.RegenerateCerts(); err != nil {
+			return nil, nil, err
+		}
+	}
+	c.config.Runtime.RegenerateSupervisorCert = listener.Listener.RegenerateCerts
+	return wrapHandler(listener.TLSListener, listener.Handler, nil)
 }
 
 func (c *Cluster) filterCN(cn ...string) []string {
