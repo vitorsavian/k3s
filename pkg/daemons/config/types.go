@@ -351,6 +351,11 @@ type ControlRuntime struct {
 	Tunnel                    http.Handler
 	Authenticator             authenticator.Request
 
+	// RegenerateSupervisorCert triggers an in-place regeneration of the dynamic listener
+	// certificate served on the supervisor / kube-apiserver port. Set by the cluster setup;
+	// invoked by the cert reload HTTP handler.
+	RegenerateSupervisorCert func() error
+
 	EgressSelectorConfig  string
 	CloudControllerConfig string
 
