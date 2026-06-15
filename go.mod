@@ -19,6 +19,7 @@ replace (
 	github.com/opencontainers/selinux => github.com/opencontainers/selinux v1.13.1
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/common => github.com/prometheus/common v0.67.5
+	github.com/rancher/dynamiclistener => github.com/vitorsavian/dynamiclistener v0.0.0-20250703181238-56d6841895ca
 	github.com/spegel-org/spegel => github.com/k3s-io/spegel v0.7.1-k3s1
 	go.etcd.io/etcd/api/v3 => github.com/k3s-io/etcd/api/v3 v3.6.7-k3s1
 	go.etcd.io/etcd/client/pkg/v3 => github.com/k3s-io/etcd/client/pkg/v3 v3.6.7-k3s1

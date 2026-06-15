@@ -12,9 +12,52 @@ type CertRotateCA struct {
 	Force      bool
 }
 
+type CertReload struct {
+	NodeName string
+	NodeIPs  cli.StringSlice
+}
+
 var (
 	ServicesList           cli.StringSlice
 	CertRotateCAConfig     CertRotateCA
+	CertReloadConfig       CertReload
+	CertReloadCommandFlags = []cli.Flag{
+		DebugFlag,
+		ConfigFlag,
+		LogFile,
+		AlsoLogToStderr,
+		DataDirFlag,
+		&cli.StringSliceFlag{
+			Name:        "service",
+			Usage:       "List of services to reload certificates for. Defaults to all services for the detected node type.",
+			Destination: &ServicesList,
+		},
+		&cli.StringFlag{
+			Name:        "server",
+			Aliases:     []string{"s"},
+			Usage:       "(cluster) Server to connect to",
+			EnvVars:     []string{version.ProgramUpper + "_URL"},
+			Value:       "https://127.0.0.1:6443",
+			Destination: &ServerConfig.ServerURL,
+		},
+		&cli.StringFlag{
+			Name:        "token",
+			Aliases:     []string{"t"},
+			Usage:       "(cluster) Shared secret used to join the cluster. Required on agents; on servers, defaults to the value of the server token file.",
+			EnvVars:     []string{version.ProgramUpper + "_TOKEN"},
+			Destination: &ServerConfig.Token,
+		},
+		&cli.StringFlag{
+			Name:        "node-name",
+			Usage:       "(agent) Override the node name reported when requesting per-node certificates. Defaults to the local hostname.",
+			Destination: &CertReloadConfig.NodeName,
+		},
+		&cli.StringSliceFlag{
+			Name:        "node-ip",
+			Usage:       "(agent) Override the node IP addresses included in serving certificates. Can be repeated.",
+			Destination: &CertReloadConfig.NodeIPs,
+		},
+	}
 	CertRotateCommandFlags = []cli.Flag{
 		DebugFlag,
 		ConfigFlag,
@@ -52,7 +95,7 @@ var (
 	}
 )
 
-func NewCertCommands(check, rotate, rotateCA func(ctx *cli.Context) error) *cli.Command {
+func NewCertCommands(check, rotate, rotateCA, reload func(ctx *cli.Context) error) *cli.Command {
 	return &cli.Command{
 		Name:            CertCommand,
 		Usage:           "Manage K3s certificates",
@@ -76,6 +119,15 @@ func NewCertCommands(check, rotate, rotateCA func(ctx *cli.Context) error) *cli.
 				SkipFlagParsing: false,
 				Action:          rotate,
 				Flags:           CertRotateCommandFlags,
+				Subcommands: []*cli.Command{
+					{
+						Name:            "reload",
+						Usage:           "Refresh " + version.Program + " leaf certificates in place without restarting. CAs are not touched (use rotate-ca for that). Components that support file-watch reload pick up the new certificate automatically; the rest keep using the old certificate until the next process restart.",
+						SkipFlagParsing: false,
+						Action:          reload,
+						Flags:           CertReloadCommandFlags,
+					},
+				},
 			},
 			{
 				Name:            "rotate-ca",
